@@ -111,6 +111,78 @@ data/cookies/cookies.txt
 
 Не публикуйте этот файл и не добавляйте его в git. Cookies-файл фактически дает доступ к вашей браузерной сессии.
 
+### Экспорт cookies через Get cookies.txt LOCALLY
+
+Удобный вариант для Chrome, Edge и Firefox - расширение **Get cookies.txt LOCALLY**:
+
+- Chrome Web Store: <https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc>
+- Firefox Add-ons: <https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/>
+
+Порядок:
+
+1. Установите расширение в браузер.
+2. Откройте в этом же браузере нужные сайты:
+   - <https://www.instagram.com>
+   - <https://www.facebook.com>
+   - <https://x.com>
+3. Войдите в аккаунты, к которым у вас есть доступ.
+4. Откройте расширение **Get cookies.txt LOCALLY**.
+5. Выберите формат экспорта **Netscape**.
+6. Если хотите один общий файл для Instagram/Facebook/X, выберите экспорт **all cookies** / **export all cookies**.
+7. Сохраните файл как:
+
+```bash
+cookies.txt
+```
+
+8. Положите файл в папку проекта:
+
+```bash
+data/cookies/cookies.txt
+```
+
+Для Synology через File Station это означает: открыть папку проекта, зайти в `data/cookies` и заменить там `cookies.txt`.
+
+Если экспортировать cookies отдельно по каждому сайту, не перезаписывайте общий файл последним сайтом. Иначе в `cookies.txt` останутся cookies только одного сервиса. Самый простой способ - залогиниться в Instagram/Facebook/X в одном браузере и экспортировать **all cookies** в один файл.
+
+### Когда обновлять cookies
+
+Обновляйте `data/cookies/cookies.txt`, если бот пишет ошибки вроде:
+
+```text
+login required
+not authorized
+sign in
+cookies
+```
+
+Порядок обновления:
+
+1. Откройте Instagram/Facebook/X в браузере.
+2. Убедитесь, что вы залогинены.
+3. Снова экспортируйте cookies в Netscape format.
+4. Перезапишите файл:
+
+```bash
+data/cookies/cookies.txt
+```
+
+Если путь и имя файла не менялись, перезапуск контейнера обычно не нужен. Если хотите перезапустить вручную:
+
+```bash
+docker compose restart
+```
+
+### Безопасность cookies
+
+`cookies.txt` нельзя отправлять другим людям, публиковать в GitHub или хранить в общей папке. По сути это временный доступ к вашей браузерной сессии.
+
+Рекомендации:
+
+- используйте отдельный браузерный профиль для бота;
+- не используйте основной личный аккаунт, если можно завести отдельный;
+- если cookies-файл случайно утек, выйдите из аккаунта на сайте, смените пароль при необходимости и экспортируйте новый файл.
+
 ## Локальный запуск без Docker
 
 ```bash
