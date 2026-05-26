@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+import subprocess
 from pathlib import Path
 
-from telegram import Update
+from telegram import Message, Update
 from telegram.constants import ChatAction
+from telegram.error import TelegramError
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from config import Settings, load_settings
@@ -13,6 +16,10 @@ from downloader import DownloadResult, download_url
 
 
 URL_RE = re.compile(r"https?://[^\s<>\"]+", re.IGNORECASE)
+PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v"}
+ANIMATION_EXTENSIONS = {".gif"}
+TELEGRAM_VIDEO_SUFFIX = ".telegram.mp4"
 
 
 def extract_urls(text: str) -> list[str]:
@@ -31,10 +38,102 @@ async def where(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.effective_message.reply_text(f"Папка: {settings.download_dir}\nОтправка: {target}")
 
 
+def transcode_video_for_telegram(file_path: Path) -> Path:
+    if file_path.suffix.lower() not in VIDEO_EXTENSIONS or file_path.name.endswith(TELEGRAM_VIDEO_SUFFIX):
+        return file_path
+
+    output_path = file_path.with_name(f"{file_path.stem}{TELEGRAM_VIDEO_SUFFIX}")
+    if output_path.exists() and output_path.stat().st_size > 0 and output_path.stat().st_mtime >= file_path.stat().st_mtime:
+        return output_path
+
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(file_path),
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-vf",
+        "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-level",
+        "4.1",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-movflags",
+        "+faststart",
+        str(output_path),
+    ]
+
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    if completed.returncode != 0 or not output_path.exists() or output_path.stat().st_size == 0:
+        logging.error("ffmpeg telegram transcode failed for %s: %s", file_path, completed.stderr.strip())
+        return file_path
+
+    return output_path
+
+
+async def prepare_file_for_upload(file_path: Path) -> Path:
+    if file_path.suffix.lower() in VIDEO_EXTENSIONS:
+        return await asyncio.to_thread(transcode_video_for_telegram, file_path)
+    return file_path
+
+
+async def send_media_file(
+    message: Message,
+    context: ContextTypes.DEFAULT_TYPE,
+    file_path: Path,
+    caption: str,
+    target_chat_id: str | int | None,
+) -> None:
+    suffix = file_path.suffix.lower()
+    send_to_chat = target_chat_id is not None
+
+    try:
+        with file_path.open("rb") as media:
+            if suffix in PHOTO_EXTENSIONS:
+                if send_to_chat:
+                    await context.bot.send_photo(chat_id=target_chat_id, photo=media, caption=caption)
+                else:
+                    await message.reply_photo(photo=media, caption=caption)
+            elif suffix in VIDEO_EXTENSIONS:
+                if send_to_chat:
+                    await context.bot.send_video(chat_id=target_chat_id, video=media, caption=caption)
+                else:
+                    await message.reply_video(video=media, caption=caption)
+            elif suffix in ANIMATION_EXTENSIONS:
+                if send_to_chat:
+                    await context.bot.send_animation(chat_id=target_chat_id, animation=media, caption=caption)
+                else:
+                    await message.reply_animation(animation=media, caption=caption)
+            else:
+                raise ValueError(f"Unsupported media preview extension: {suffix}")
+    except (TelegramError, ValueError):
+        logging.exception("Falling back to document upload for %s", file_path)
+        with file_path.open("rb") as media:
+            if send_to_chat:
+                await context.bot.send_document(chat_id=target_chat_id, document=media, caption=caption)
+            else:
+                await message.reply_document(document=media, caption=caption)
+
+
 async def send_result(update: Update, context: ContextTypes.DEFAULT_TYPE, result: DownloadResult) -> None:
     settings: Settings = context.application.bot_data["settings"]
     message = update.effective_message
-    target_chat_id = settings.send_to_chat_id or update.effective_chat.id
+    target_chat_id = settings.send_to_chat_id
     max_bytes = settings.telegram_max_upload_mb * 1024 * 1024
 
     if not result.files:
@@ -45,22 +144,12 @@ async def send_result(update: Update, context: ContextTypes.DEFAULT_TYPE, result
     skipped: list[Path] = []
 
     for file_path in result.files:
-        if file_path.stat().st_size > max_bytes:
-            skipped.append(file_path)
+        upload_path = await prepare_file_for_upload(file_path)
+        if upload_path.stat().st_size > max_bytes:
+            skipped.append(upload_path)
             continue
 
-        with file_path.open("rb") as media:
-            if settings.send_to_chat_id:
-                await context.bot.send_document(
-                    chat_id=target_chat_id,
-                    document=media,
-                    caption=result.title[:1024],
-                )
-            else:
-                await message.reply_document(
-                    document=media,
-                    caption=result.title[:1024],
-                )
+        await send_media_file(message, context, upload_path, result.title[:1024], target_chat_id)
         sent += 1
 
     saved_list = "\n".join(str(path) for path in result.files)
