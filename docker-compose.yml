@@ -1,0 +1,12 @@
+services:
+  telegram-media-bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DOWNLOAD_DIR: /data/downloads
+      YTDLP_COOKIES_FILE: /data/cookies/cookies.txt
+    volumes:
+      - ./data/downloads:/data/downloads
+      - ./data/cookies:/data/cookies:ro
