@@ -12,6 +12,6 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY bot.py config.py downloader.py ./
+COPY bot.py config.py downloader.py cleanup.py ./
 
 CMD ["python", "bot.py"]

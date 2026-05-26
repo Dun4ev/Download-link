@@ -14,6 +14,7 @@ class Settings:
     send_to_chat_id: str | None
     cookies_file: Path | None
     telegram_max_upload_mb: int
+    cleanup_downloads_after_days: int
 
 
 def load_settings() -> Settings:
@@ -30,6 +31,7 @@ def load_settings() -> Settings:
     cookies_file = Path(cookies_value).expanduser() if cookies_value else None
 
     max_upload_mb = int(os.getenv("TELEGRAM_MAX_UPLOAD_MB", "50"))
+    cleanup_days = int(os.getenv("CLEANUP_DOWNLOADS_AFTER_DAYS", "30"))
 
     return Settings(
         telegram_bot_token=token,
@@ -37,4 +39,5 @@ def load_settings() -> Settings:
         send_to_chat_id=send_to_chat_id,
         cookies_file=cookies_file,
         telegram_max_upload_mb=max_upload_mb,
+        cleanup_downloads_after_days=cleanup_days,
     )

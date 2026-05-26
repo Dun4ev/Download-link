@@ -11,6 +11,7 @@ from telegram.constants import ChatAction
 from telegram.error import TelegramError
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
+from cleanup import cleanup_old_downloads, directory_size, format_bytes
 from config import Settings, load_settings
 from downloader import DownloadResult, download_url
 
@@ -27,15 +28,51 @@ def extract_urls(text: str) -> list[str]:
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await help_command(update, context)
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    settings: Settings = context.application.bot_data["settings"]
+    target = settings.send_to_chat_id or "этот чат"
     await update.effective_message.reply_text(
-        "Пришлите ссылку на публичное фото, видео или GIF. Я скачаю файл и сохраню его в заданную папку."
+        "Что умеет бот:\n"
+        "- пришлите ссылку на фото, видео или GIF, бот скачает и отправит медиа без подписи;\n"
+        "- оригиналы и подготовленные видео сохраняются в папку downloads;\n"
+        "- старые файлы очищаются автоматически.\n\n"
+        "Команды:\n"
+        "/help - показать эту справку\n"
+        "/where - показать папку, размер downloads и цель отправки\n"
+        "/cleanup - вручную удалить файлы старше настроенного срока\n\n"
+        f"Отправка: {target}\n"
+        f"Автоочистка: файлы старше {settings.cleanup_downloads_after_days} дней"
     )
 
 
 async def where(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     settings: Settings = context.application.bot_data["settings"]
     target = settings.send_to_chat_id or "чат с отправителем"
-    await update.effective_message.reply_text(f"Папка: {settings.download_dir}\nОтправка: {target}")
+    size = format_bytes(directory_size(settings.download_dir))
+    await update.effective_message.reply_text(
+        f"Папка: {settings.download_dir}\n"
+        f"Размер downloads: {size}\n"
+        f"Отправка: {target}\n"
+        f"Автоочистка: старше {settings.cleanup_downloads_after_days} дней"
+    )
+
+
+async def cleanup_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    settings: Settings = context.application.bot_data["settings"]
+    result = await asyncio.to_thread(
+        cleanup_old_downloads,
+        settings.download_dir,
+        settings.cleanup_downloads_after_days,
+    )
+    await update.effective_message.reply_text(
+        "Очистка завершена.\n"
+        f"Удалено файлов: {result.deleted_files}\n"
+        f"Удалено пустых папок: {result.deleted_dirs}\n"
+        f"Освобождено: {format_bytes(result.freed_bytes)}"
+    )
 
 
 def transcode_video_for_telegram(file_path: Path) -> Path:
@@ -185,13 +222,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         await status.edit_text(f"Скачано: {result.title}")
         await send_result(update, context, result)
+        await asyncio.to_thread(
+            cleanup_old_downloads,
+            settings.download_dir,
+            settings.cleanup_downloads_after_days,
+        )
 
 
 def build_app(settings: Settings) -> Application:
     app = Application.builder().token(settings.telegram_bot_token).build()
     app.bot_data["settings"] = settings
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("where", where))
+    app.add_handler(CommandHandler("cleanup", cleanup_command))
     app.add_handler(MessageHandler(filters.TEXT | filters.CaptionRegex(URL_RE), handle_message))
     return app
 

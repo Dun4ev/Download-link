@@ -111,3 +111,38 @@ H.264 video + yuv420p + AAC audio + MP4 faststart
 docker compose down
 docker compose up -d --build
 ```
+
+## 2026-05-26: После добавления очистки контейнер падает с ModuleNotFoundError
+
+Ошибка:
+
+```text
+ModuleNotFoundError: No module named 'cleanup'
+from cleanup import cleanup_old_downloads, directory_size, format_bytes
+File "/app/bot.py", line 14, in <module>
+```
+
+Причина:
+
+В проект был добавлен новый файл `cleanup.py`, но `Dockerfile` копировал в образ только:
+
+```dockerfile
+COPY bot.py config.py downloader.py ./
+```
+
+Локально код работал, потому что `cleanup.py` был в папке проекта. В контейнере файла не было, поэтому импорт падал при старте.
+
+Решение:
+
+В `Dockerfile` добавлен `cleanup.py`:
+
+```dockerfile
+COPY bot.py config.py downloader.py cleanup.py ./
+```
+
+После изменения нужно пересобрать контейнер:
+
+```bash
+docker compose down
+docker compose up -d --build
+```
