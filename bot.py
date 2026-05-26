@@ -96,7 +96,6 @@ async def send_media_file(
     message: Message,
     context: ContextTypes.DEFAULT_TYPE,
     file_path: Path,
-    caption: str,
     target_chat_id: str | int | None,
 ) -> None:
     suffix = file_path.suffix.lower()
@@ -106,28 +105,28 @@ async def send_media_file(
         with file_path.open("rb") as media:
             if suffix in PHOTO_EXTENSIONS:
                 if send_to_chat:
-                    await context.bot.send_photo(chat_id=target_chat_id, photo=media, caption=caption)
+                    await context.bot.send_photo(chat_id=target_chat_id, photo=media)
                 else:
-                    await message.reply_photo(photo=media, caption=caption)
+                    await message.reply_photo(photo=media)
             elif suffix in VIDEO_EXTENSIONS:
                 if send_to_chat:
-                    await context.bot.send_video(chat_id=target_chat_id, video=media, caption=caption)
+                    await context.bot.send_video(chat_id=target_chat_id, video=media)
                 else:
-                    await message.reply_video(video=media, caption=caption)
+                    await message.reply_video(video=media)
             elif suffix in ANIMATION_EXTENSIONS:
                 if send_to_chat:
-                    await context.bot.send_animation(chat_id=target_chat_id, animation=media, caption=caption)
+                    await context.bot.send_animation(chat_id=target_chat_id, animation=media)
                 else:
-                    await message.reply_animation(animation=media, caption=caption)
+                    await message.reply_animation(animation=media)
             else:
                 raise ValueError(f"Unsupported media preview extension: {suffix}")
     except (TelegramError, ValueError):
         logging.exception("Falling back to document upload for %s", file_path)
         with file_path.open("rb") as media:
             if send_to_chat:
-                await context.bot.send_document(chat_id=target_chat_id, document=media, caption=caption)
+                await context.bot.send_document(chat_id=target_chat_id, document=media)
             else:
-                await message.reply_document(document=media, caption=caption)
+                await message.reply_document(document=media)
 
 
 async def send_result(update: Update, context: ContextTypes.DEFAULT_TYPE, result: DownloadResult) -> None:
@@ -149,7 +148,7 @@ async def send_result(update: Update, context: ContextTypes.DEFAULT_TYPE, result
             skipped.append(upload_path)
             continue
 
-        await send_media_file(message, context, upload_path, result.title[:1024], target_chat_id)
+        await send_media_file(message, context, upload_path, target_chat_id)
         sent += 1
 
     saved_list = "\n".join(str(path) for path in result.files)
@@ -158,8 +157,6 @@ async def send_result(update: Update, context: ContextTypes.DEFAULT_TYPE, result
         await message.reply_text(
             f"Сохранено на диск, но часть файлов больше лимита Telegram.\n\nФайлы:\n{saved_list}\n\nНе отправлено:\n{skipped_list}"
         )
-    elif settings.send_to_chat_id:
-        await message.reply_text(f"Готово. Файлов отправлено в целевой чат: {sent}\nСохранено:\n{saved_list}")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
