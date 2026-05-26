@@ -9,4 +9,4 @@ services:
       YTDLP_COOKIES_FILE: /data/cookies/cookies.txt
     volumes:
       - ./data/downloads:/data/downloads
-      - ./data/cookies:/data/cookies:ro
+      - ./data/cookies:/data/cookies

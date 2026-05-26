@@ -50,11 +50,17 @@ async def send_result(update: Update, context: ContextTypes.DEFAULT_TYPE, result
             continue
 
         with file_path.open("rb") as media:
-            await context.bot.send_document(
-                chat_id=target_chat_id,
-                document=media,
-                caption=result.title[:1024],
-            )
+            if settings.send_to_chat_id:
+                await context.bot.send_document(
+                    chat_id=target_chat_id,
+                    document=media,
+                    caption=result.title[:1024],
+                )
+            else:
+                await message.reply_document(
+                    document=media,
+                    caption=result.title[:1024],
+                )
         sent += 1
 
     saved_list = "\n".join(str(path) for path in result.files)

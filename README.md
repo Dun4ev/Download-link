@@ -6,7 +6,7 @@
 
 ## Установка на Synology через Docker Compose
 
-Основной сценарий для NAS: файлы сохраняются в папку `data/downloads`, cookies лежат в `data/cookies/cookies.txt`, а скачанные файлы дополнительно отправляются в Telegram-канал.
+Основной сценарий для NAS: файлы сохраняются в папку `data/downloads`, cookies лежат в `data/cookies/cookies.txt`, а бот отвечает скачанным файлом прямо в том же чате, куда вы отправили ссылку.
 
 Подготовьте папки рядом с проектом:
 
@@ -19,13 +19,19 @@ cp .env.example .env
 
 ```bash
 TELEGRAM_BOT_TOKEN=токен_от_BotFather
-SEND_TO_CHAT_ID=@your_channel_username
+SEND_TO_CHAT_ID=
 DOWNLOAD_DIR=/data/downloads
 YTDLP_COOKIES_FILE=/data/cookies/cookies.txt
 TELEGRAM_MAX_UPLOAD_MB=50
 ```
 
-Добавьте бота администратором канала, указанного в `SEND_TO_CHAT_ID`.
+Если хотите дополнительно или вместо ответа отправлять файл в канал, добавьте бота администратором канала и укажите:
+
+```bash
+SEND_TO_CHAT_ID=@your_channel_username
+```
+
+Если `SEND_TO_CHAT_ID` пустой, бот отвечает файлом прямо на ваше сообщение со ссылкой.
 
 Соберите и запустите контейнер:
 
@@ -52,7 +58,7 @@ docker compose build --no-cache
 docker compose up -d
 ```
 
-После запуска отправьте боту ссылку. Команда `/where` покажет текущую папку сохранения и целевой чат отправки.
+После запуска отправьте боту ссылку. Он скачает файл, сохранит его на NAS и ответит скачанным файлом в этом же чате. Команда `/where` покажет текущую папку сохранения и целевой чат отправки.
 
 ## Cookies для Instagram/Facebook/X
 
@@ -69,6 +75,8 @@ data/cookies/cookies.txt
 ```
 
 Чтобы обновить cookies, просто перезапишите `data/cookies/cookies.txt` свежим файлом. Если путь не менялся, перезапуск контейнера обычно не нужен: `yt-dlp` читает cookies-файл при каждом скачивании.
+
+Папка `data/cookies` монтируется в контейнер с правом записи. Это нужно потому, что `yt-dlp` может обновлять cookies-файл во время работы. Если примонтировать ее как read-only, скачивание может падать с ошибкой `Read-only file system: '/data/cookies/cookies.txt'`.
 
 Если файла `data/cookies/cookies.txt` еще нет, бот будет скачивать без cookies. Это нормально для публичных ссылок, которым не нужна авторизация.
 
