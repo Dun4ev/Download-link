@@ -146,3 +146,28 @@ COPY bot.py config.py downloader.py cleanup.py ./
 docker compose down
 docker compose up -d --build
 ```
+
+## 2026-05-28: Instagram Story вернула пустую metadata из yt-dlp
+
+Ошибка:
+
+```text
+yt-dlp did not return download metadata.
+```
+
+Причина:
+
+Для Instagram Stories `yt-dlp` может завершить обработку без нормального объекта metadata. Раньше бот считал это окончательной ошибкой и не пробовал второй downloader.
+
+Решение:
+
+Если `yt-dlp` не возвращает metadata, бот теперь запускает fallback через `gallery-dl`, используя тот же `cookies.txt`.
+
+Для Stories особенно важно, чтобы cookies были свежими и аккаунт имел доступ к этой истории.
+
+После изменения нужно пересобрать контейнер:
+
+```bash
+docker compose down
+docker compose up -d --build
+```

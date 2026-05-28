@@ -15,6 +15,7 @@ GALLERY_DL_FALLBACK_ERRORS = (
     "No video formats found",
     "No video could be found",
 )
+YT_DLP_EMPTY_METADATA_ERROR = "yt-dlp did not return download metadata."
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,7 @@ def _download_sync(url: str, download_dir: Path, cookies_file: Path | None) -> D
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(url, download=True)
             if not isinstance(info, dict):
-                raise RuntimeError("yt-dlp did not return download metadata.")
+                return _download_with_gallery_dl(url, download_dir, cookies_file, YT_DLP_EMPTY_METADATA_ERROR)
     except DownloadError as exc:
         error_text = str(exc)
         if not any(marker in error_text for marker in GALLERY_DL_FALLBACK_ERRORS):
