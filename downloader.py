@@ -16,6 +16,7 @@ GALLERY_DL_FALLBACK_ERRORS = (
     "No video could be found",
 )
 YT_DLP_EMPTY_METADATA_ERROR = "yt-dlp did not return download metadata."
+YT_DLP_VIDEO_FORMAT = "bv*[aspect_ratio<1]+ba/b[aspect_ratio<1]/bv*+ba/best"
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,9 @@ def _download_sync(url: str, download_dir: Path, cookies_file: Path | None) -> D
     target_dir = download_dir / "yt-dlp"
 
     options: dict[str, Any] = {
-        "format": "bestvideo*+bestaudio/best",
+        "format": YT_DLP_VIDEO_FORMAT,
+        "format_sort": ["height", "width", "fps", "tbr", "filesize"],
+        "format_sort_force": True,
         "merge_output_format": "mp4",
         "noplaylist": True,
         "outtmpl": str(target_dir / "%(extractor)s" / "%(upload_date>%Y-%m-%d)s" / "%(title).180B-%(id)s.%(ext)s"),

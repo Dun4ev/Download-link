@@ -27,6 +27,38 @@ def extract_urls(text: str) -> list[str]:
     return [url.rstrip(").,;]") for url in URL_RE.findall(text)]
 
 
+def probe_video_dimensions(file_path: Path) -> tuple[int, int] | None:
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height",
+        "-of",
+        "csv=p=0:s=x",
+        str(file_path),
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    if completed.returncode != 0:
+        logging.warning("ffprobe dimensions failed for %s: %s", file_path, completed.stderr.strip())
+        return None
+
+    dimensions = completed.stdout.strip().splitlines()[0] if completed.stdout.strip() else ""
+    try:
+        width_text, height_text = dimensions.split("x", 1)
+        width = int(width_text)
+        height = int(height_text)
+    except ValueError:
+        logging.warning("ffprobe returned unexpected dimensions for %s: %r", file_path, dimensions)
+        return None
+
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await help_command(update, context)
 
@@ -99,7 +131,7 @@ def transcode_video_for_telegram(file_path: Path) -> Path:
         "-preset",
         "veryfast",
         "-crf",
-        "23",
+        "18",
         "-pix_fmt",
         "yuv420p",
         "-profile:v",
@@ -146,10 +178,14 @@ async def send_media_file(
                 else:
                     await message.reply_photo(photo=media)
             elif suffix in VIDEO_EXTENSIONS:
+                dimensions = await asyncio.to_thread(probe_video_dimensions, file_path)
+                video_kwargs = {"supports_streaming": True}
+                if dimensions:
+                    video_kwargs["width"], video_kwargs["height"] = dimensions
                 if send_to_chat:
-                    await context.bot.send_video(chat_id=target_chat_id, video=media)
+                    await context.bot.send_video(chat_id=target_chat_id, video=media, **video_kwargs)
                 else:
-                    await message.reply_video(video=media)
+                    await message.reply_video(video=media, **video_kwargs)
             elif suffix in ANIMATION_EXTENSIONS:
                 if send_to_chat:
                     await context.bot.send_animation(chat_id=target_chat_id, animation=media)
